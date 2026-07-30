@@ -1,0 +1,7 @@
+work/
+results/
+samples/
+refs/
+*.nextflow.log*
+.nextflow/
+*.html
