@@ -1,0 +1,6 @@
+2025-09-07 22:00:58	1.6s	small_brazil	OK	3e5209f4833930bd7c2290a44e52a919	168cd393-92be-47c6-b6d6-f0ff43c14798	nextflow run hello-world.nf
+2025-09-07 22:02:23	2.4s	hungry_nobel	OK	d04573d90117c106a74b8387108c28af	3555c7d2-31cb-4337-99b4-9e7dfe444665	nextflow run hello-world.nf
+2025-09-07 22:03:10	2.5s	scruffy_brazil	OK	d04573d90117c106a74b8387108c28af	3555c7d2-31cb-4337-99b4-9e7dfe444665	nextflow run hello-world.nf -resume
+2025-09-07 22:05:02	1.9s	spontaneous_heyrovsky	OK	1588a367335aba22376ac4d72be1ef28	9c11013f-895d-4138-b6fd-42f538ea9eb2	nextflow run hello-world.nf --greeting 'Bonjour le monde!'
+2025-09-07 22:06:03	1.5s	mighty_mccarthy	OK	25fca2c3ce46233f43e4844a7e3e8e17	1b58c2da-0e22-4388-b879-29bae0dd40f0	nextflow run hello-world.nf
+2025-09-07 22:06:26	2.2s	happy_swanson	OK	25fca2c3ce46233f43e4844a7e3e8e17	db02ca4b-42de-4fb8-a428-6759ce2a1803	nextflow run hello-world.nf --greeting 'Konnichiwa!'
