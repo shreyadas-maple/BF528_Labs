@@ -1,0 +1,328 @@
+# Installation and Setup
+
+
+If asked to update packages, select "n"
+```{r}
+BiocManager::install("muscData")
+
+```
+
+
+We are going to work with a dataset looking at peripheral blood mononuclear cells from patients with lupus treated with IFNB. (https://www.nature.com/articles/nbt.4042)
+
+```{r}
+library(muscData)
+sce <- Kang18_8vs8()
+```
+
+---
+
+## Single Cell Experiment
+
+Single cell experiment objects are the R equivalent of an anndata object and store all of the data for a single cell experiment in a single data structure.
+
+This will return the basic dimensions of the dataset in the form of genes x cells:
+
+```{r}
+dim(sce)
+```
+
+---
+
+## Three main components of the object
+
+1. **Assays** (count matrices)
+2. **colData** (cell-level metadata)
+3. **rowData** (gene-level metadata)
+
+```{r}
+# Full counts matrix, note that it's sparse to save on size
+counts(sce)
+```
+
+```{r}
+# Cell metadata
+head(colData(sce))
+```
+
+```{r}
+# Gene metadata
+head(rowData(sce))
+```
+
+---
+
+## Exploring Cell Metadata
+
+```{r}
+colData(sce)
+```
+
+The `ind` column contains the ID of each individual sample. How many unique samples are there?
+
+Hint: You can access columns of the sce experiment object with the `sce$column-name` notation. Find a function in R that returns unique values. 
+
+
+```{r}
+length(unique(sce$ind))
+
+```
+
+The `stim` column indicates whether cells were stimulated with interferon-β or left as controls. How many cells are in each condition?
+
+Hint: Use the `table()` function.
+
+```{r}
+table(sce$stim)
+```
+
+Create a cross-tabulation showing the number of cells for each individual in each condition:
+
+Hint: Use the `table()` function and specify the appropriate columns in the sce object using sce$column_name
+
+```{r}
+
+table(Individual = sce$ind, Condition = sce$stim)
+```
+
+
+The `cell` column contains cell type annotations. Which cell type has the most cells?
+
+
+```{r}
+cell_counts <- table(sce$cell)
+sort(cell_counts, decreasing = TRUE)
+```
+
+
+
+## Exploring Gene Metadata
+
+```{r}
+head(rowData(sce))
+```
+
+The gene metadata contains Ensembl IDs and gene symbols. Find the gene symbol for "ENSG00000087086":
+
+Hint: Remember rowData(sce) is a dataframe and can be subsetted rowData(sce)[rows, columns]. 
+You will need an expression to search for the right gene, and return all of the columns
+
+```{r}
+rowData
+```
+
+
+```{r}
+rowData(sce)[rowData(sce)$ENSEMBL == "ENSG00000087086",]
+
+```
+
+
+## Subsetting SingleCellExperiment Objects
+
+SCE objects use `sce[genes, cells]` syntax for subsetting.
+
+Make a new sce object with just the cells labeled as B cells
+
+Hint: You may need to filter out NA values in addition to checking if a cell
+is a B-cell
+
+```{r}
+
+sce_bcells <- sce[, !is.na(sce$cell) & sce$cell == "B cell"]
+sce_bcells
+```
+
+Make a new sce object with the B cells from only the stimulated condition
+
+```{r}
+stim_bcells <- sce[,sce$stim == "stim"]
+stim_bcells
+```
+
+Create a subset containing only CD14+ Monocytes from individual 101:
+
+```{r}
+cd14_101 <- sce[sce$ind == "101", !is.na(sce$cell) & sce$cell == "CD14+ Monocytes"]
+
+```
+
+
+## Quality Control Metrics
+
+
+Find a function that will calculate the sum of all counts for each column
+
+```{r}
+
+
+```
+
+Find how many genes are expressed in each cell (genes with > 0 counts)
+```{r}
+
+
+```
+
+Add both of the above calculated values to the coldata
+```{r}
+
+```
+
+## Preparing for Pseudobulk Analysis
+
+For pseudobulk analysis, we aggregate cells by individual and condition.
+
+Find an R function that will combine the values of the `ind` and `stim` columns
+into a new value and save that to a new column in the sce object. 
+
+```{r}
+
+
+
+
+```
+
+
+For CD14+ Monocytes, how many cells contribute to each pseudobulk sample?
+
+Hint: You can again subset the sce object by sce[rows, ] and use the `table()`
+function. Make a subsetted object that only contains the cell type of interest
+and then count by the correct column (pseudobulk column) using the `table()`
+function.
+
+```{r}
+
+
+```
+
+
+Let's convert the single cell experiment object to a seurat object so that we can do the initial workflow on the samples
+
+```{r}
+
+
+```
+
+---
+title: "Pseudobulk.Rmd"
+output: html_document
+date: "2025-12-05"
+---
+
+Copy and paste this Rmarkdown into your previous Rmd that we were working on 
+during class Wednesday.
+
+
+Install the muscat package through BiocManager
+```{r}
+
+```
+
+
+Use the aggregateData function from muscat to generate matrices where you've added
+up the counts from each cell population to a single count per sample. Pseudobulking
+has been shown to mitigate many of the biases when trying to compare expression 
+profiles of individual cells of the same type against individual cells. 
+
+You will want to use the `cell` and `sample_id` column to group and count cells
+```{r}
+
+```
+  
+ 
+Choose just one of the cell populations at random, and extract out the counts
+using assay(sce_object, "name_in_cell_column"). Take a look, for each cell
+population we now have a matrix where the rows are genes, and the columns are the
+16 samples (8 stimulated, 8 control).
+```{r}
+
+
+```
+ 
+ 
+ 
+Make the colData for DESeq2. Remember you must list out the samples in the same
+order as the columns in the counts. You should make a new column that has the
+metadata about whether that sample is "stim" or "ctl". The rownames should be 
+the same as the column names. 
+
+Hint: You can use a combination of colnames(), data.frame(), rownames(), and 
+str_split_i() to accomplish this.
+
+```{r}
+
+```
+ 
+ 
+Load the DESeq2 library and create the DDS object using the counts, Coldata, and
+set the design formula as `~ condition`
+```{r}
+
+
+```
+
+Run DESeq2 and create a tibble of the results ordered by pvalue
+```{r}
+
+```
+ 
+ 
+Let's try to recreate their other findings from the single cell data by following
+the basic Seurat workflow. Create a new Seurat object using the `CreateSeuratObject()`
+function. You will need to provide the counts from the entire single cell experiment
+object and the metadata stored in colData.
+
+```{r}
+
+
+```
+
+
+Do some basic QC analysis on the data following the Seurat tutorial
+```{r}
+
+```
+
+
+Normalize the data, find highly variable features, scale the data and run PCA.
+Again, you may follow the Seurat tutorial and use the suggested starting values. 
+```{r}
+
+```
+
+
+Run FindNeighbors, FindClusters, and RunUMAP. Ensure that you specify a resolution for FindClusters and use
+your choice of # of Principal components for FindNeighbors and RunUMAP. 
+
+Create a UMAP plot of the single cell data. What do you observe?
+
+
+```{r}
+
+```
+
+Use FindAllMarkers to find marker genes for every cluster, and make a dotplot / 
+heatmap of the top 5 marker genes for every cluster. 
+
+```{r}
+
+
+```
+
+Use the single cell experiment object of the same data and try to use singleR to automatically annotate
+the cell types. You will need to convert the seurat object back to a single cell object using  `as.SingleCellExperiment`.
+There are several tutorials available online for how to run singleR and celldex, it is conceptually quite similar to
+celltypist.
+
+```{r}
+
+
+```
+
+
+## Session Info
+
+```{r}
+sessionInfo()
+```
