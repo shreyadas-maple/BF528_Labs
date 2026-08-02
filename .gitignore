@@ -1,0 +1,9 @@
+.nextflow/
+work/
+.vscode/
+results/
+samples/
+refs/
+.nextflow*
+*.img
+*.bgz
