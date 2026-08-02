@@ -1,0 +1,151 @@
+---
+title: "analysis"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+Load the libraries needed
+```{r}
+library(DESeq2)
+library(tidyverse)
+```
+
+
+
+Read in the counts matrix using `read.table` and `as.matrix`
+```{r, echo=FALSE}
+counts <- as.matrix(read.table("all_verse_outputs.tsv", header = TRUE, row.names = "gene_id"))
+
+head(counts)
+```
+
+In the last lab, we manually generated a coldata. While convenient for small 
+experiments, it would be better for us to directly create the coldata for the 
+experiment based on the column names.
+
+Use a combination of `colnames()`, `str_split_i()` and `data.frame()` to make the
+coldata. Name the column `condition`.
+```{r, echo=FALSE}
+coldata <- data.frame(row.names = colnames(counts), condition = str_split_i(colnames(counts), "_", i =1))
+
+coldata
+
+```
+
+
+
+Now create a DESeq2 object as you've done in the past to test for DE using the design formula
+~ condition
+
+```{r, echo=FALSE}
+dds <- DESeqDataSetFromMatrix(countData = counts, colData = coldata, design = ~ condition)
+```
+
+
+Run DESeq2 and extract out the results comparing KO to WT
+```{r, echo=FALSE}
+dds <- DESeq(dds)
+res <- results(dds, contrast = c("condition", "KO", "WT"))
+resOrdered <- res[order(res$padj),]
+```
+
+Convert the results to a tibble using `as_tibble()` and ensure you keep the rownames.
+Use a tidyverse function and report the number of genes that are significant with
+a padj < .15
+```{r, echo=FALSE}
+resOrdered <- as_tibble(resOrdered, rownames = "gene_id")
+
+resOrdered %>% filter(padj < 0.15)
+
+```
+
+Technically, DESeq2 does not ever generate a normalized counts matrix. It performs
+normalization and the size factors are incorporated into the model. However, DESeq2
+does provide a function to return a matrix of normalized counts. We are often
+interested in the normalized counts as visualizing them can help us confirm
+the success of our differential expression analysis as well as reveal other
+interesting patterns.
+
+Find the appropriate function in DESeq2 and generate a matrix of normalized counts
+```{r, echo=FALSE}
+
+
+```
+
+Take the gene with the lowest padj and plot the normalized counts per sample.
+There are many ways to accomplish this. 
+
+I used a combination of `as_tibble()`, `filter`, `pivot_longer()`, `separate_wider_delim()`,
+`ggplot`, and `geom_col()`.
+
+```{r, echo=FALSE}
+
+
+```
+
+This was a gene called significantly differentially expressed, and you can see
+that in general, the counts are higher for the WT samples. However, there does
+appear to be large variance in the counts for the WT.
+
+This was a real experiment and we noticed that we didn't appear to have many
+differentially expressed genes in total but we observed a very striking phenotype.
+This led us to believe that we were missing something in our analysis.
+
+If you look at the numbers of the samples, do you see any patterns?
+
+As it turns out, this was an experiment done with mice and the numbers relay
+the information on which mice were part of which litter. 840, 841, 842, 842 were
+one litter of mice, 857 and 858 were another, and 891 and 892 another. 
+
+Oftentimes, there are other factors that we believe may be affecting gene expression.
+We call these covariates and it can be helpful to include them in your model when
+testing for differential expression.
+
+Let's redo the analysis and add in the knowledge of our samples.
+
+Update your coldata by adding a new column indicating which litter samples came 
+from. Assign the following labels by calling `data.frame` on coldata and adding
+a new column called litter. Remember you may make lists in R using `c()`, for example,
+c('L1', 'L1') would make a list / vector of two elements.
+```{r, echo=FALSE}
+
+
+```
+
+
+Let's recreate our DESeq2 object with the new coldata and an updated design
+```{r}
+
+```
+
+Re-run DESeq2 and regenerate the results
+```{r}
+
+```
+
+Convert your results to a tibble and now report how many genes are significant
+at padj < .15.
+```{r, echo=FALSE}
+
+```
+
+Re-extract the normalized counts
+```{r}
+
+
+```
+
+Now let's plot the counts for the gene ENSMUSG00000025780.7:
+```{r, echo=FALSE}
+
+
+```
+
+And the same for gene ENSMUSG00000002015.5
+```{r, echo=FALSE}
+
+
+
+```
