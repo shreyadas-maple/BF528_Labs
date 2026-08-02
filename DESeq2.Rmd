@@ -1,0 +1,152 @@
+# DESeq2 - Basic Differential Expression
+
+## Rmarkdown notebooks are very similar to Jupyter Notebooks
+
+This will make a code block:
+```{r}
+x <- 2
+x
+
+```
+
+Anything outside is markdown / text.
+
+## R Environment Management
+
+Although we have been very careful with how we manage our computational environments, there is no clean solution available to us in R. There are some tools like Renv, which perform a similar function to conda, but they do not appear to work with our particular setup on the cluster. 
+
+So, we are going to simply install packages and rely on the base installation
+of R on the SCC. 
+
+## Bioconductor
+
+Bioconductor is an open source repository for bioinformatics tools in R. They also provide the BiocManager package, which is the primary way to install tools hosted by Bioconductor. 
+
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(version = "3.20")
+
+```
+
+Now, we can install DESeq2 through bioconductor:
+```{r}
+BiocManager::install("DESeq2")
+```
+
+```{r}
+install.packages("tidyverse")
+```
+
+## DE Analysis
+
+Load the DESeq2 Library
+```{r}
+library(DESeq2)
+library(tidyverse)
+```
+
+[DESeq2 Vignette](https://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#count-matrix-input)
+
+We need three inputs to DESeq2: a counts matrix, the colData, and the design formula. Our counts matrix is what we generated with our pipeline and we will
+need to create the other two elements. 
+
+### Read in the counts matrix
+
+R has a number of built-in functions to read from a dataframe / csv. We will use
+`read.csv` to read in the contents of our counts file, please ensure that you use
+the `row.names` argument in `read.csv`. We will then need to convert the R dataframe
+to a matrix. 
+
+```{r}
+cts <- as.matrix(read.csv("verse_concat.csv", row.names= "gene"))
+cts # This is the counts matrix of all the reads for each gene at each timepoint
+```
+
+### colData
+
+We also need to build what DESeq2 refers to as the colData, which is a dataframe that describes the factors of interest you are testing relative to your samples.
+
+Today, we will create this dataframe manually, but you could also do so within R
+itself. 
+
+Let's create a CSV file that has the required information. Once we have done that, you can read in the
+CSV into a dataframe in R. 
+
+```{r}
+coldata <- as.dataframe(read.csv("coldata.csv"))
+coldata # This is the column data to be used for the DESeq 
+```
+
+This coldata is necessary for DESeq2 to determine what are the variables of interest to test for differential expression against. Together with the design 
+formula and the coldata, DESeq2 will construct generalized linear models to test
+for differential expression 
+
+A few things to note:
+
+1. This experiment only has one condition of interest (the timepoint at which each sample was collected). You can of course model gene expression according to multiple covariates by simply adding columns to the metadata here and by adjusting the design formula. 
+
+2. The order in the coldata (top to bottom) **must** be the same as the order of
+your columns in your counds data (left to right). DESeq2 will not check whether
+the order matches: you need to ensure that they are both in the same order with
+respect to your samples or the analysis you perform will be inaccurate and potentially meaningless. In this example, the columns were nicely sorted in the counts matrix but that is not always guaranteed to be the case. 
+
+### Design Formula
+
+The design formula is tied into the idea of a linear model and contains the information needed by DESeq2 in terms of which variables to use when modeling the count data. In our simple experiment, we are only interested in a single variable: the effect of time. Our design formula will look like below:
+
+~ timepoint
+
+This will instruct DESeq2 to build those generalized linear models and test the
+effect of the `timepoint` condition on the observed counts. 
+
+## Constructing the DESeq object
+
+Once we have all three of the above inputs, we need to load them into a DESeq2 object that DESeq2 will then use to perform differential expression testing.
+Use the provided function in the DESeq2 vignette for how to read in a counts matrix.
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ timepoint)
+```
+
+You can see that we have provided the function the three necessary inputs and this pre-built function will generate a DESeq2 object, which is often named dds (you can rename this if you choose).
+
+## Filtering your counts matrix
+
+In other settings, you may wish to filter your counts matrix by plotting what
+the distribution of counts look like for your samples and choosing a reasonable strategy. Remember that we are never trying to alter the biology by filtering counts, we simply are trying to remove genes that will be uninformative for the analysis .
+
+## Running DESeq
+
+Once you have your object, you will need to run the actual DESeq2 method and then use the `results`
+function to extract out the comparisons of interest. 
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds, contrast=c("timepoint", "AD", "P0")) #Pair-wise comparision between AD and P0
+
+```
+
+Find the appropriate code in the DESeq2 vignette or if you are familiar with R yourself, please re-order
+the results to be ranked by ascending padj value (smallest padj values are listed at the top).
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+as_tibble(resOrdered, rownames ='gene')
+```
+
+## SessionInfo
+
+The sessioninfo function is one way we can attempt to be transparent about our
+environment management in R.
+
+This will print out a summary of the current packages installed in the environment.
+
+```{r}
+install.packages('sessioninfo')
+```
+
+```{r}
+sessioninfo::session_info()
+```
