@@ -1,0 +1,298 @@
+# DESeq2 - Basic Differential Expression
+
+## Rmarkdown notebooks are very similar to Jupyter Notebooks
+
+This will make a code block:
+```{r}
+
+
+```
+
+Anything outside is markdown / text.
+
+## R Environment Management
+
+Although we have been very careful with how we manage our computational environments, there is no clean solution available to us in R. There are some tools like Renv, which perform a similar function to conda, but they do not appear to work with our particular setup on the cluster. 
+
+So, we are going to simply rely on the base installation of R on the SCC, which has a
+number of packages pre-installed.
+
+## DE Analysis
+
+Load the DESeq2 Library and tidyverse
+```{r}
+library(DESeq2)
+library(tidyverse)
+```
+
+[DESeq2 Vignette](https://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#count-matrix-input)
+
+We need three inputs to DESeq2: a counts matrix, the colData, and the design formula. Our counts matrix is what we generated with our pipeline and we will
+need to create the other two elements. 
+
+### Read in the counts matrix
+
+R has a number of built-in functions to read from a dataframe / csv. We will use
+`read.csv` to read in the contents of our counts file.
+
+```{r}
+cts <- as.matrix(read.csv("verse_concat.csv", row.names='gene'))
+cts
+
+```
+
+### colData
+
+We also need to build what DESeq2 refers to as the colData, which is a dataframe that describes the factors of interest you are testing relative to your samples.
+
+Today, we will create this dataframe manually, but you could also do so within R
+itself. 
+```{r}
+coldata <- read.csv('coldata.csv')
+coldata
+```
+
+This coldata is necessary for DESeq2 to determine what are the variables of interest to test for differential expression against. Together with the design 
+formula and the coldata, DESeq2 will construct generalized linear models to test
+for differential expression 
+
+A few things to note:
+
+1. This experiment only has one condition of interest (the timepoint at which each sample was collected). You can of course model gene expression according to multiple covariates by simply adding columns to the metadata here and by adjusting the design formula. 
+
+2. The order in the coldata (top to bottom) **must** be the same as the order of
+your columns in your counds data (left to right). DESeq2 will not check whether
+the order matches: you need to ensure that they are both in the same order with
+respect to your samples or the analysis you perform will be inaccurate and potentially meaningless. In this example, the columns were nicely sorted in the counts matrix but that is not always guaranteed to be the case. 
+
+### Design Formula
+
+The design formula is tied into the idea of a linear model and contains the information needed by DESeq2 in terms of which variables to use when modeling the count data. In our simple experiment, we are only interested in a single variable: the effect of time. Our design formula will look like below:
+
+~ timepoint
+
+This will instruct DESeq2 to build those generalized linear models and test the
+effect of the `timepoint` condition on the observed counts. 
+
+## Constructing the DESeq object
+
+Once we have all three of the above inputs, we need to load them into a DESeq2 object that DESeq2 will then use to perform differential expression testing.
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ timepoint)
+
+```
+
+You can see that we have provided the DESeqDataSetFromMatrix function the three necessary inputs and this pre-built function will generate a DESeq2 object, which is often named dds (you can rename this if you choose).
+
+## Filtering your counts matrix
+
+In other settings, you may wish to filter your counts matrix by plotting what
+the distribution of counts look like for your samples and choosing a reasonable strategy. Remember that we are never trying to alter the biology by filtering counts, we simply are trying to remove genes that will be uninformative for the analysis .
+
+## Running DESeq
+
+Once you have your object, you will run DESeq2 as such:
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds, contrast=c("timepoint","AD","P0"))
+
+```
+The results function can extract the results of interest from the dds object where the DESeq2 software stored both the input and the outputs it generated.
+
+The following code simply orders the results by those with the lowest padj.
+```{r}
+resOrdered <- res[order(res$padj),]
+deseq2_res <- as_tibble(resOrdered, rownames='gene')
+deseq2_res
+```
+
+## Joining our gene names
+
+Most languages that allow you to manipulate dataframes (tabular, 2-dimensional data)
+enable you to perform `join` operations. These are ways of joining two different
+dataframes or tables together on some common column.
+
+Let's read in our output from `PARSE_GTF`. Use a tidyverse function to read in 
+the id2name.txt file as a tibble. You may view the file if that helps you figure
+out which function to use. When you read in the file, ensure that you name the 
+columns `gene` and `symbol`, respectively.
+
+Print out the file you read in as a tibble. 
+```{r}
+library (readr)
+
+```
+```{r}
+# You can read-in the tsv using the read_tsv function from tidyverse and specify the col names
+ids <- read_tsv(("id2name.txt"), col_names = c("gene", "symbol"))
+
+ids
+```
+
+Notice how the gene column matches up with the gene column in our DESeq2 results.
+We can use this column to join the information from the dataframe (tibble) we just
+created with our DESeq2 results. The `%>%` is a tidyverse function that operates
+similarly to the bash pipe `|`.
+
+Use one of the [join functions](https://dplyr.tidyverse.org/reference/mutate-joins.html)
+and the `%>%` to join the deseq2_res dataframe with the dataframe you just created above. When you manage to do this, your new dataframe should have all of the columns from the
+DESeq2 output as well as a new column for the gene symbols. Save this to the 
+same dataframe and overwrite it (deseq2_res)
+
+```{r}
+# Join the tibbles using the matching column "gene" and relocate the symbol column to the first column
+# I don't know what the difference would be with left_join vs right_join
+deseq2_res <- deseq2_res %>% left_join(ids) %>% relocate(symbol)
+
+# Show the resulting 
+deseq2_res
+
+```
+
+## DAVID or ENRICHR Analysis
+
+The most basic of gene set enrichment analyis is to use a webtool like DAVID
+or EnrichR on a list of significantly differentially expressed genes. 
+
+To do this, we need to threshold our list of genes by some metric and we will
+often choose a padj threshold. **Please note that this is an example only! The 
+padj threshold chosen is specific for this example - you should not always use 
+the same threshold and you do not always need to filter by up- or downregulated**
+
+We will then write out our list of "interesting" genes to a text file. This is
+often needed for web applications that either accept a file or expect you to
+paste in your list of genes. It is also useful for sharing results. 
+
+Use a combination of tidyverse functions to filter your deseq2_res dataframe to
+only include genes with a padj <.000001 and a log2FoldChange > 0, and select
+only the column with the symbols. 
+
+Use an appropriate base R function to write out the list of gene symbols to a
+text file. Ensure that there are no column names, no row names, and no quotations
+around the values. You may name this file anything you like. 
+
+```{r}
+
+filtered_deseq2 <- deseq2_res %>% filter(padj <.000001 & (log2FoldChange > 0 || log2FoldChange < 0)) %>% select(symbol)
+
+write.table(filtered_deseq2, "sig_genes.txt", col.names = FALSE, row.names = FALSE, quote = FALSE)
+
+filtered_deseq2
+```
+
+
+## Performing GSEA (Broad Methodology)
+
+To perform GSEA (broad methodology), we need two main pieces of data: 1. A ranked
+list of all of the genes discovered in our experiment, 2. A collection of gene
+sets.
+
+We already have the first element (though we will need to manipulate our data 
+into the right format) and we can obtain the second, a collection of gene sets,
+from the MSigDB hosted by the Broad.These gene sets are stored in a GMT format, which
+you can view as a text file. I included one in the repo but you could just as
+easily download it from the Broad yourself. 
+
+
+## Installing fgsea
+
+```{r}
+BiocManager::install("fgsea")
+
+```
+
+We are technically going to be using the fgsea package, which is a re-implementation
+of the original GSEA algorithm (Broad) with a number of improvements. You can
+find a quick vignette [here](https://bioconductor.org/packages/release/bioc/vignettes/fgsea/inst/doc/fgsea-tutorial.html)
+
+```{r}
+library(fgsea)
+```
+
+### Generated a ranked list of our genes by Log2FoldChange
+
+We will walk through this together, but in order to run GSEA, we need a ranked
+list of genes that have no duplicate values, no NA values, and is ranked by
+descending log2FoldChange. 
+
+Use your deseq2_res tibble and a combination of the following functions to generate
+a dataframe (tibble) with the right format: drop_na(), distinct(), arrange() and desc().
+When you think you have managed this, save the tibble to a new variable called
+`deseq2_res_ordered`
+
+Once you have the tibble, use the `setNames` function and the notation, 
+`deseq2_res_ordered$log2FoldChange` and `deseq2_res_ordered$symbol` to create a 
+ranked named list of your genes by log2FoldChange. 
+
+```{r}
+deseq_res_ordered <- deseq2_res %>%
+  drop_na() %>%
+  distinct(symbol, .keep_all = TRUE) %>%
+  arrange()
+
+```
+
+
+### Read in the GMT file
+
+fgsea provides a convenience function that will read in our gene set collection
+in the format that it requires to run.
+```{r}
+
+pathways <- gmtPathways("m2.cp.v2025.1.Mm.symbols.gmt")
+head(pathways)
+
+```
+
+### Running FGSEA
+
+The minSize and maxSize control which gene sets are used based on how many genes
+are contained within each gene set. It has been empirically found that the GSEA
+methodology does not perform well on gene sets that are either too small or too
+large. 
+
+
+```{r}
+fgseaRes <- fgsea(pathways, rnk_list, minSize=15, maxSize=500)
+```
+
+
+```{r}
+head(fgseaRes[order(pval), ])
+```
+
+```{r}
+plotEnrichment(pathways[["REACTOME_CELL_CYCLE_CHECKPOINTS"]],
+               rnk_list) + labs(title="REACTOME_CELL_CYCLE_CHECKPOINTS")
+
+```
+
+### Plotting multiple results
+
+I simply copied this code from their vignette. All it does is grab pathways with
+a positive and negative enrichment score and order them by p-value.
+
+```{r}
+topPathwaysUp <- fgseaRes[ES > 0][head(order(pval), n=10), pathway]
+topPathwaysDown <- fgseaRes[ES < 0][head(order(pval), n=10), pathway]
+topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
+plotGseaTable(pathways[topPathways], rnk_list, fgseaRes, 
+              gseaParam=0.5)
+
+
+```
+
+## SessionInfo
+
+The sessioninfo function is one way we can attempt to be transparent about our
+environment management in R.
+
+This will print out a summary of the current packages installed in the environment.
+
+```{r}
+sessioninfo::session_info()
+```
